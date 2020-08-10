@@ -3,6 +3,16 @@ name = "image2ascii"
 version = "0.1.0"
 authors = ["kizitorashiro <kizitora.shiro@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "convert image file to ascii art"
+readme = "README.md"
+repository = "https://github.com/kizitorashiro/image2ascii"
+categories = ["command-line-utilities", "multimedia::images"]
+keywords = ["cli","graphics","text","terminal"]
+
+[badges]
+travis-ci = { repository = "kizitorashiro/image2ascii" }
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
