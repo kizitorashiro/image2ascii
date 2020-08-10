@@ -1,0 +1,15 @@
+[package]
+name = "image2ascii"
+version = "0.1.0"
+authors = ["kizitorashiro <kizitora.shiro@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = "0.23.8"
+rusttype = "0.9.2"
+tempfile = "3.1.0"
+structopt = "0.3.16"
+
+
