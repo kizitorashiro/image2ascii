@@ -2,7 +2,7 @@
 `image2ascii` is a command line application to convert image file to ascii art.
 
 ```console
-$ cargo run --release -- --input <image file> --width <width of ascii art>
+$ cargo run --release --bin image2ascii -- --input <image file> --width <width of ascii art>
 $ cargo run --release --bin image2ascii -- --input ./img/spotted_garden_eel.png --width 100
                                                       ,l!i`                                        
                    _ir=l`I-                         -/+zt-i{r                                       
@@ -42,7 +42,7 @@ $ cargo run --release --bin image2ascii -- --input ./img/spotted_garden_eel.png 
 `string2ascii` is a command line application to convert string to ascii art.
 
 ```console
-$ cargo run --release --bin string2ascii -- --input <image file> --width <width of ascii art>
+$ cargo run --release --bin string2ascii -- --input <string> --height <height of ascii art> --ch <character of ascii art>
 $ cargo run --release --bin string2ascii -- --input 'Hello!' --height 15 --ch '@'
                                                           
                                @    @@                     
