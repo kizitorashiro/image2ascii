@@ -1,18 +1,29 @@
-//! convert image file to ascii art
+//! convert image file or string to ascii art
 
 use image::imageops::FilterType;
 use rusttype::{point, Font, Scale, PositionedGlyph};
 use std::fs::File;
 use std::io::{self, BufWriter, Write, Read};
+use std::cmp;
 use image::GenericImageView;
+use rand::{thread_rng, Rng};
 
 /// characters that is used to make ascii art 
-pub static ASCIIS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!\"#$%&'()-^\\=~|@[`{;:]+*},./_<>?_ ";
+pub static ASCIIS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!\"#$%&'()-^\\=~|@[`{;:]+*},./_<>?_     ";
+//pub static ASCIIS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!\"#$%&'()-^\\=~|@[`{;:]+*},./_<>?_ ";
 
 /// 2-d array of chars
 pub struct Char2DArray {
     /// 2-d array of chars by Vec 
     pub buffer: Vec<Vec<char>>,
+    height: usize,
+    width: usize,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct CharPosition {
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Char2DArray {
@@ -21,6 +32,8 @@ impl Char2DArray {
     pub fn new(width: usize, height: usize) -> Char2DArray {
         let mut array2d = Char2DArray{
             buffer: Vec::with_capacity(height),
+            height: height,
+            width: width,
         };
         for _ in 0..height {
             let mut line: Vec<char> = Vec::with_capacity(width);
@@ -30,6 +43,24 @@ impl Char2DArray {
             array2d.buffer.push(line);
         }        
         array2d
+    }
+
+    pub fn debug_print(&self) {
+        let lines = self.to_lines();
+        for line in lines {
+            println!("{}", line);
+        }
+    }
+
+    ///create Char2DArray from Vec<Vec<char>>
+    pub fn from(src: Vec<Vec<char>>) -> Char2DArray {
+        let mut c2d = Char2DArray::new(src[0].len(), src.len());
+        for y in 0..c2d.height() {
+            for x in 0..c2d.width() {
+                c2d.buffer[y][x] = src[y][x];
+            }
+        }
+        c2d
     }
 
     /// conver to Vec<String>
@@ -54,11 +85,96 @@ impl Char2DArray {
         writer.flush()?;
         Ok(())
     }
-    /*
-    fn overwrite_rect(&mut self, pos_x: usize, pos_y: usize, width: usize, height: usize) {
 
+    /// get number of lines
+    pub fn height(&self) -> usize {
+        self.height
     }
-    */
+
+    /// get number of rows
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// overwrite data by another Char2DArray
+    pub fn overwrite_rect(&mut self, rect: &Char2DArray, position: CharPosition, transparent: Option<char>) {
+        let y_start = cmp::max(0, position.y);
+        let y_end = cmp::min(self.height() as i32, position.y + rect.height() as i32);
+        let x_start = cmp::max(0, position.x);
+        let x_end = cmp::min(self.width() as i32, position.x + rect.width() as i32);
+
+        for y in y_start..y_end {
+            for x in x_start..x_end {
+                match transparent {
+                    Some(ch) => {
+                        if rect.buffer[(y - position.y) as usize][(x - position.x) as usize] == ch {
+                            continue;
+                        }
+                    },
+                    _ => {}
+                }
+                self.buffer[y as usize][x as usize] = rect.buffer[(y - position.y) as usize][(x - position.x) as usize];
+            }
+        }
+    }
+ 
+
+    pub fn overwrite_rect_center(&mut self, rect: &Char2DArray, position: CharPosition, transparent: Option<char>) {
+        let center_x = (self.width() / 2) - (rect.width() / 2);    
+        let center_y = (self.height() / 2) - (rect.height() / 2);
+        let offset_posi = CharPosition {
+            x: position.x + center_x as i32,
+            y: position.y + center_y as i32,
+        };
+        self.overwrite_rect(rect, offset_posi, transparent)
+    }
+    
+
+    pub fn overwrite_line(&mut self, ch: char, line_index: usize) {
+        for x in 0..self.width() {
+            self.buffer[line_index][x] = ch;
+        }
+    }
+    
+    pub fn overwrite_char(&mut self, ch: char, position: CharPosition){
+        self.buffer[position.y as usize][position.x as usize] = ch;
+    }
+
+    pub fn overwrite_char_all(&mut self, ch: char) {
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                self.buffer[y][x] = ch;
+            }
+        }
+    }
+    
+    pub fn copy_from(&mut self, src: &Char2DArray) {
+        self.overwrite_rect(src, CharPosition{x:0,y:0}, Option::None);
+    }
+
+    pub fn overwrite_fn<F: Fn(usize, usize, char) -> bool>(&mut self, ch: char, f: F){
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                if f(x, y, self.buffer[y as usize][x as usize]) {
+                    self.buffer[y as usize][x as usize] = ch;
+                }
+            }
+        }
+    }
+
+    pub fn overwrite_random_fn<F: Fn(usize, usize, char) -> bool>(&mut self, chars: Vec<char>, f: F){
+        let mut rng = thread_rng();
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                if f(x, y, self.buffer[y as usize][x as usize]) {
+                    let index: usize = rng.gen_range(0, chars.len());
+                    self.buffer[y as usize][x as usize] = chars[index];
+                }
+            }
+        }
+    }
+    
+
 }
 
 /// pad String to 256 characters
@@ -103,6 +219,58 @@ fn ascii2density(ascii_list: &String) -> Vec<(u32, char)> {
     density_ascii
 }
 
+/// convert string to ascii art 
+pub fn string2ascii(message: &str, height: f32, ch: char, ch2nd: Option<(usize, char)>, font_file: Option<&str>) -> Result<Char2DArray, String> {
+    let font = if let Some(file) = font_file {
+        let font_data = std::fs::read(&file).unwrap();
+        Font::try_from_vec(font_data).unwrap()
+    } else {
+        let font_data = include_bytes!("../font/OpenSans-Regular.ttf");
+        Font::try_from_bytes(font_data as &[u8]).unwrap()
+    };
+    let pixel_height = height.ceil() as usize;
+    let scale = Scale {
+        x: height * 2.0,
+        y: height,
+    };
+    let v_metrics = font.v_metrics(scale);
+    let offset = point(0.0, v_metrics.ascent);
+
+    let glyphs: Vec<_> = font.layout(&message, scale, offset).collect();
+
+    let width = glyphs
+        .iter()
+        .rev()
+        .map(|g| g.position().x as f32 + g.unpositioned().h_metrics().advance_width)
+        .next()
+        .unwrap_or(0.0)
+        .ceil() as usize;
+    
+    let mut c2d = Char2DArray::new(width, pixel_height);
+    let latter = ch2nd.unwrap_or((0, ch));
+    for (i, g) in glyphs.iter().enumerate() {
+        if let Some(bb) = g.pixel_bounding_box() {
+            g.draw(|x, y, v| {
+                let mut c = ' ';
+                if v > 0.5 {
+                    if i < latter.0 {
+                        c = ch;
+                    } else {
+                        c = latter.1;
+                    }
+                }
+                let x = x as i32 + bb.min.x;
+                let y = y as i32 + bb.min.y;
+                if x >= 0 && x < width as i32 && y >= 0 && y < pixel_height as i32 {
+                    c2d.buffer[y as usize][x as usize] = c;
+                }
+            });
+        }
+    }
+    Ok(c2d)
+}
+
+
 /// convert image file to ascii art
 pub fn image2ascii(image_file: &str, target_width: u32, contrast: Option<f32>, characters: Option<&str>) -> Result<Char2DArray, String> {
     let density_ascii = ascii2density(&pad(characters.unwrap_or(ASCIIS), 256));
@@ -127,6 +295,7 @@ pub fn image2ascii(image_file: &str, target_width: u32, contrast: Option<f32>, c
             let index = pixel[0] as usize;
             char2d.buffer[y as usize][x as usize] = density_ascii[index].1;
         }
+        
         Ok(char2d)
     } else {
         Err(format!("can not open file {}",image_file))
@@ -210,24 +379,160 @@ fn ascii2density_works() {
     assert_eq!(density_ascii[2].1, '=');
     assert_eq!(density_ascii[3].1, '.');
 }
+#[test]
+fn char2darray_height_width_works() {
+    let c2d = Char2DArray::new(5, 10);
+    assert_eq!(c2d.height(), 10);
+    assert_eq!(c2d.width(), 5);
+}
 
 #[test]
-fn image2ascii_works() {
-    let c2d = image2ascii("./img/black.png", 10, Option::None, Option::None).unwrap();
-    assert_eq!(c2d.buffer.len(), 6);
-    for line in c2d.buffer.iter() {
-        assert_eq!(line.len(), 10);
-        for pixel in line.iter(){
-            assert_eq!(pixel, &'@');
-        }
-    }
-    let c2d = image2ascii("./img/pink.png", 10, Option::None, Option::None).unwrap();
-    assert_eq!(c2d.buffer.len(), 6);
-    for line in c2d.buffer.iter() {
-        assert_eq!(line.len(), 10);
-        for pixel in line.iter(){
-            assert_eq!(pixel, &' ');
-        }
-    }
+fn char2darray_from_works() {
+    let c2d = Char2DArray::from(
+        vec![
+            vec!['A', 'B', 'C'],
+            vec!['X', 'Y', 'Z'],
+        ]
+    );
+    assert_eq!(c2d.width(), 3);
+    assert_eq!(c2d.height(), 2);
+    assert_eq!(c2d.buffer[0], ['A', 'B', 'C']);
+    assert_eq!(c2d.buffer[1], ['X', 'Y', 'Z']);
+}
+
+#[test]
+fn char2darray_overwrite_rect_works() {
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C'],
+        vec!['X', 'Y', 'Z'],
+    ]);
+    let rect = Char2DArray::from(vec![
+        vec!['1', '2'],
+        vec!['3', '4'],
+    ]);
+ 
+    let pos = CharPosition{x: 0, y: 0};
+    base.overwrite_rect(&rect, pos, Option::None);
+
+    assert_eq!(base.buffer[0], ['1', '2', 'C']);
+    assert_eq!(base.buffer[1], ['3', '4', 'Z']);
+
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C'],
+        vec!['X', 'Y', 'Z'],
+    ]);
+ 
+    let pos = CharPosition{x: -1, y: -1};
+    base.overwrite_rect(&rect, pos, Option::None);
+
+    assert_eq!(base.buffer[0], ['4', 'B', 'C']);
+    assert_eq!(base.buffer[1], ['X', 'Y', 'Z']);
+
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C'],
+        vec!['X', 'Y', 'Z'],
+    ]);
+ 
+    let pos = CharPosition{x: 1, y: 1};
+    base.overwrite_rect(&rect, pos, Option::None);
+
+    assert_eq!(base.buffer[0], ['A', 'B', 'C']);
+    assert_eq!(base.buffer[1], ['X', '1', '2']);
+
+}
+#[test]
+fn char2darray_overwrite_rect_center_works() {
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C', 'D'],
+        vec!['E', 'F', 'G', 'H'],
+        vec!['I', 'J', 'K', 'L'],
+        vec!['M', 'N', 'O', 'P'],
+    ]);
+    let rect = Char2DArray::from(vec![
+        vec!['1', '2'],
+        vec!['3', '4'],
+    ]);
+ 
+    let pos = CharPosition{x: 0, y: 0};
+    base.overwrite_rect_center(&rect, pos, Option::None);
+
+    assert_eq!(base.buffer[0], ['A', 'B', 'C', 'D']);
+    assert_eq!(base.buffer[1], ['E', '1', '2', 'H']);
+    assert_eq!(base.buffer[2], ['I', '3', '4', 'L']);
+    assert_eq!(base.buffer[3], ['M', 'N', 'O', 'P']);
     
+}
+
+#[test]
+fn char2darray_overwrite_rect_center_trans_works() {
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C', 'D'],
+        vec!['E', 'F', 'G', 'H'],
+        vec!['I', 'J', 'K', 'L'],
+        vec!['M', 'N', 'O', 'P'],
+    ]);
+    let rect = Char2DArray::from(vec![
+        vec!['\u{0000}', '2'],
+        vec!['3', '4'],
+    ]);
+ 
+    let pos = CharPosition{x: 0, y: 0};
+    base.overwrite_rect_center(&rect, pos, Some('\u{0000}'));
+
+    assert_eq!(base.buffer[0], ['A', 'B', 'C', 'D']);
+    assert_eq!(base.buffer[1], ['E', 'F', '2', 'H']);
+    assert_eq!(base.buffer[2], ['I', '3', '4', 'L']);
+    assert_eq!(base.buffer[3], ['M', 'N', 'O', 'P']);
+    
+}
+#[test]
+fn char2darray_overwrite_line_works() {
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C', 'D'],
+        vec!['E', 'F', 'G', 'H'],
+        vec!['I', 'J', 'K', 'L'],
+        vec!['M', 'N', 'O', 'P'],
+    ]);
+    base.overwrite_line('@', 1);
+    assert_eq!(base.buffer[0], ['A', 'B', 'C', 'D']);
+    assert_eq!(base.buffer[1], ['@', '@', '@', '@']);
+    assert_eq!(base.buffer[2], ['I', 'J', 'K', 'L']);
+    assert_eq!(base.buffer[3], ['M', 'N', 'O', 'P']);
+}
+#[test]
+fn char2darray_overwrite_char_works(){
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C', 'D'],
+        vec!['E', 'F', 'G', 'H'],
+        vec!['I', 'J', 'K', 'L'],
+        vec!['M', 'N', 'O', 'P'],
+    ]);
+    base.overwrite_char('@', CharPosition{x: 2, y:1});
+    assert_eq!(base.buffer[0], ['A', 'B', 'C', 'D']);
+    assert_eq!(base.buffer[1], ['E', 'F', '@', 'H']);
+    assert_eq!(base.buffer[2], ['I', 'J', 'K', 'L']);
+    assert_eq!(base.buffer[3], ['M', 'N', 'O', 'P']);
+}
+
+#[test]
+fn char2darray_overwrite_fn_works(){
+    let mut base = Char2DArray::from(vec![
+        vec!['A', 'B', 'C', 'D'],
+        vec!['E', 'F', 'G', 'H'],
+        vec!['I', 'J', 'K', 'L'],
+        vec!['M', 'N', 'O', 'P'],
+    ]);
+    let threshold = 2;
+    base.overwrite_fn('@', |_, y,_| {
+        if y >= threshold {
+            true
+        }else {
+            false
+        }
+    });
+    assert_eq!(base.buffer[0], ['A', 'B', 'C', 'D']);
+    assert_eq!(base.buffer[1], ['E', 'F', 'G', 'H']);
+    assert_eq!(base.buffer[2], ['@', '@', '@', '@']);
+    assert_eq!(base.buffer[3], ['@', '@', '@', '@']);
+
 }

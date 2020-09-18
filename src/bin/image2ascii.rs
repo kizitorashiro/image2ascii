@@ -1,5 +1,4 @@
 use image2ascii::image2ascii;
-//use std::path::PathBuf;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use structopt::StructOpt;

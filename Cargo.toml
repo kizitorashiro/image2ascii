@@ -1,10 +1,10 @@
 [package]
 name = "image2ascii"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["kizitorashiro <kizitora.shiro@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
-description = "convert image file to ascii art"
+description = "convert image file or string to ascii art"
 readme = "README.md"
 repository = "https://github.com/kizitorashiro/image2ascii"
 categories = ["command-line-utilities", "multimedia::images"]
@@ -21,5 +21,6 @@ image = "0.23.8"
 rusttype = "0.9.2"
 tempfile = "3.1.0"
 structopt = "0.3.16"
+rand = "0.7.3"
 
 
